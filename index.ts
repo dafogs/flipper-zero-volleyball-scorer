@@ -135,9 +135,9 @@ var S = {
         if (hi >= t && lead >= 2) {
             var w = self.a > self.b ? "A" : "B";
             self.sets.push({ a: self.a, b: self.b, w: w });
-            if (w === "A") self.setsA += 1; else self.setsB += 1;
-            if (self.setsA === 3 || self.setsB === 3) self.mode = "matchover";
-            else self.mode = "setover";
+            if (w === "A") { self.setsA += 1; } else { self.setsB += 1; }
+            if (self.setsA === 3 || self.setsB === 3) { self.mode = "matchover"; }
+            else { self.mode = "setover"; }
             return true;
         }
         self.mode = "play";
@@ -149,12 +149,12 @@ var S = {
         if (self.mode !== "play") return;
         self.snapshot(self);
 
-        if (team === "A") self.a += 1; else self.b += 1;
+        if (team === "A") { self.a += 1; } else { self.b += 1; }
         // Rally scoring: the rally winner serves the next rally.
         self.server = team;
 
-        if (self.evaluate(self)) notify.success();
-        else notify.blink("green", "short");
+        if (self.evaluate(self)) { notify.success(); }
+        else { notify.blink("green", "short"); }
         self.render(self);
     },
 
@@ -330,18 +330,18 @@ eventLoop.subscribe(views.serve.chosen, function (_sub, index, S) {
 // Scoreboard buttons -> action depends on the current mode.
 eventLoop.subscribe(views.score.input, function (_sub, button, S) {
     if (S.mode === "play") {
-        if (button === "left") S.score(S, "A");
-        else if (button === "right") S.score(S, "B");
-        else if (button === "center") S.undo(S);
+        if (button === "left") { S.score(S, "A"); }
+        else if (button === "right") { S.score(S, "B"); }
+        else if (button === "center") { S.undo(S); }
     } else if (S.mode === "adjust") {
-        if (button === "left") S.adjustDelta(S, -1);
-        else if (button === "right") S.adjustDelta(S, 1);
-        else if (button === "center") S.switchSel(S);
+        if (button === "left") { S.adjustDelta(S, -1); }
+        else if (button === "right") { S.adjustDelta(S, 1); }
+        else if (button === "center") { S.switchSel(S); }
     } else if (S.mode === "setover") {
-        if (button === "left") S.undo(S);
-        else if (button === "center") S.nextSet(S);
+        if (button === "left") { S.undo(S); }
+        else if (button === "center") { S.nextSet(S); }
     } else { // matchover
-        if (button === "left") S.undo(S);
+        if (button === "left") { S.undo(S); }
         else if (button === "center") {
             S.newMatch(S);
             S.render(S);

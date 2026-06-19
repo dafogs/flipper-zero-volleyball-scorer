@@ -1,5 +1,32 @@
 # PROGRESS — volleyball-scoring (Flipper Zero)
 
+## 2026-06-19 — Fix on-device parse error: brace all if/else (via Claude, Cowork)
+
+**Bug**
+- First on-device run failed: `parse error at line 119: [else]`. The Flipper JS
+  engine accepts a brace-less `if` with no `else`, but rejects the trailing
+  `else` of a brace-less single-statement `if/else`. The source used brace-less
+  forms (e.g. `if (team==="A") self.a+=1; else self.b+=1;`), and esbuild
+  (`minify:false`) faithfully preserves source braces — so brace-less source =
+  brace-less bundle = device parse error.
+
+**Fix**
+- Braced every `if/else` body in `index.ts` (evaluate set-end, score a/b, the
+  win/notify branch, and the scoreboard-input button dispatches). Brace-less
+  `if` with no `else` left as-is (parses fine).
+- Confirmed esbuild preserves braces (tested v0.24.2). Rebuilt
+  `dist/volleyball-scoring.js`; verified zero brace-less `else` in the bundle.
+  Sim **50/50 green** against the freshly-built bundle.
+
+**Workspace note for future sessions**
+- The mounted `node_modules/esbuild` is the macOS binary; it cannot run in the
+  Linux build sandbox (`npm run build` fails at the esbuild step there). Build
+  on the Mac (`npm start`) for real deploys. To validate a build inside the
+  sandbox, use `esbuild-wasm` of the matching version.
+
+**State:** branch `main`, source fixed, bundle rebuilt + verified. Deploy with
+`npm start` on the Mac, then run on device.
+
 ## 2026-06-19 — Promote feature branch to main (via Claude, Cowork)
 
 **What was done**

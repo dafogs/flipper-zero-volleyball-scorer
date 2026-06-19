@@ -35,9 +35,9 @@ var views = {
 };
 var S = {
   // module handles, reached via self.* inside callbacks (no closures allowed)
-  gui: gui,
+  gui,
   loop: eventLoop,
-  views: views,
+  views,
   // which view is currently on screen: "serve" | "score" | "menu" | "history"
   screen: "serve",
   // scoreboard mode: "play" | "setover" | "matchover"
@@ -113,15 +113,17 @@ var S = {
       lead = -lead;
     if (hi >= t && lead >= 2) {
       var w = self.a > self.b ? "A" : "B";
-      self.sets.push({ a: self.a, b: self.b, w: w });
-      if (w === "A")
+      self.sets.push({ a: self.a, b: self.b, w });
+      if (w === "A") {
         self.setsA += 1;
-      else
+      } else {
         self.setsB += 1;
-      if (self.setsA === 3 || self.setsB === 3)
+      }
+      if (self.setsA === 3 || self.setsB === 3) {
         self.mode = "matchover";
-      else
+      } else {
         self.mode = "setover";
+      }
       return true;
     }
     self.mode = "play";
@@ -132,15 +134,17 @@ var S = {
     if (self.mode !== "play")
       return;
     self.snapshot(self);
-    if (team === "A")
+    if (team === "A") {
       self.a += 1;
-    else
+    } else {
       self.b += 1;
+    }
     self.server = team;
-    if (self.evaluate(self))
+    if (self.evaluate(self)) {
       notify.success();
-    else
+    } else {
       notify.blink("green", "short");
+    }
     self.render(self);
   },
   undo: function(self) {
@@ -284,28 +288,31 @@ eventLoop.subscribe(views.serve.chosen, function(_sub, index, S2) {
 }, S);
 eventLoop.subscribe(views.score.input, function(_sub, button, S2) {
   if (S2.mode === "play") {
-    if (button === "left")
+    if (button === "left") {
       S2.score(S2, "A");
-    else if (button === "right")
+    } else if (button === "right") {
       S2.score(S2, "B");
-    else if (button === "center")
+    } else if (button === "center") {
       S2.undo(S2);
+    }
   } else if (S2.mode === "adjust") {
-    if (button === "left")
+    if (button === "left") {
       S2.adjustDelta(S2, -1);
-    else if (button === "right")
+    } else if (button === "right") {
       S2.adjustDelta(S2, 1);
-    else if (button === "center")
+    } else if (button === "center") {
       S2.switchSel(S2);
+    }
   } else if (S2.mode === "setover") {
-    if (button === "left")
+    if (button === "left") {
       S2.undo(S2);
-    else if (button === "center")
+    } else if (button === "center") {
       S2.nextSet(S2);
+    }
   } else {
-    if (button === "left")
+    if (button === "left") {
       S2.undo(S2);
-    else if (button === "center") {
+    } else if (button === "center") {
       S2.newMatch(S2);
       S2.render(S2);
       S2.screen = "serve";
