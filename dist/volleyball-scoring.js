@@ -10,12 +10,15 @@ var dialog = require("@flipperdevices/fz-sdk/gui/dialog");
 var submenu = require("@flipperdevices/fz-sdk/gui/submenu");
 var textBox = require("@flipperdevices/fz-sdk/gui/text_box");
 var notify = require("@flipperdevices/fz-sdk/notification");
+function numStr(n) {
+  return n.toString();
+}
 var views = {
   // Pick who serves first at the start of a match.
-  serve: submenu.makeWith({
-    header: "Who serves first?",
-    items: ["Team A serves", "Team B serves"]
-  }),
+  // NOTE: this firmware's submenu takes list entries as makeWith's SECOND
+  // argument (children), not an `items` prop. The bundled SDK 0.1.3 types are
+  // out of sync (they declare `items`), so we cast to call the real 2-arg form.
+  serve: submenu.makeWith({ header: "Who serves first?" }, ["Team A serves", "Team B serves"]),
   // The live scoreboard. Re-used for the PLAY, SET OVER and MATCH OVER modes
   // by rewriting its props.
   score: dialog.makeWith({
@@ -25,19 +28,16 @@ var views = {
     center: "Undo",
     right: "+B"
   }),
-  // In-game menu (opened with Back).
-  menu: submenu.makeWith({
-    header: "Menu",
-    items: ["Resume", "Adjust scores", "Swap serve", "Set history", "New match", "Exit app"]
-  }),
+  // In-game menu (opened with Back). Entries are children (2nd arg), see note above.
+  menu: submenu.makeWith({ header: "Menu" }, ["Resume", "Adjust scores", "Swap serve", "Set history", "New match", "Exit app"]),
   // Scrollable set history.
   history: textBox.makeWith({ text: "", font: "text", focus: "start" })
 };
 var S = {
   // module handles, reached via self.* inside callbacks (no closures allowed)
-  gui,
+  gui: gui,
   loop: eventLoop,
-  views,
+  views: views,
   // which view is currently on screen: "serve" | "score" | "menu" | "history"
   screen: "serve",
   // scoreboard mode: "play" | "setover" | "matchover"
@@ -113,7 +113,7 @@ var S = {
       lead = -lead;
     if (hi >= t && lead >= 2) {
       var w = self.a > self.b ? "A" : "B";
-      self.sets.push({ a: self.a, b: self.b, w });
+      self.sets.push({ a: self.a, b: self.b, w: w });
       if (w === "A") {
         self.setsA += 1;
       } else {
@@ -225,20 +225,20 @@ var S = {
     var v = self.views.score;
     if (self.mode === "play") {
       var srv = self.server === "A" ? "Team A" : "Team B";
-      v.set("header", "A  " + self.a + "    " + self.b + "  B");
-      v.set("text", "Set " + self.setNum(self) + "  -  first to " + self.target(self) + "\nSets   A " + self.setsA + "   B " + self.setsB + "\nServing:  " + srv);
+      v.set("header", "A  " + numStr(self.a) + "    " + numStr(self.b) + "  B");
+      v.set("text", "Set " + numStr(self.setNum(self)) + "  -  first to " + numStr(self.target(self)) + "\nSets   A " + numStr(self.setsA) + "   B " + numStr(self.setsB) + "\nServing:  " + srv);
       v.set("left", "+A");
       v.set("center", "Undo");
       v.set("right", "+B");
     } else if (self.mode === "setover") {
       var last = self.sets[self.sets.length - 1];
-      v.set("header", "Set " + self.sets.length + ": Team " + last.w + " wins");
-      v.set("text", "Score   " + last.a + " - " + last.b + "\nSets    A " + self.setsA + "   B " + self.setsB + "\nOK = next set");
+      v.set("header", "Set " + numStr(self.sets.length) + ": Team " + last.w + " wins");
+      v.set("text", "Score   " + numStr(last.a) + " - " + numStr(last.b) + "\nSets    A " + numStr(self.setsA) + "   B " + numStr(self.setsB) + "\nOK = next set");
       v.set("left", "Undo");
       v.set("center", "Next");
       v.set("right", "");
     } else if (self.mode === "adjust") {
-      var hdr = self.sel === "A" ? "[A " + self.a + "]   " + self.b + " B" : "A " + self.a + "   [" + self.b + " B]";
+      var hdr = self.sel === "A" ? "[A " + numStr(self.a) + "]   " + numStr(self.b) + " B" : "A " + numStr(self.a) + "   [" + numStr(self.b) + " B]";
       v.set("header", hdr);
       v.set("text", "ADJUST  -  fixing Team " + self.sel + "\nLeft -1     Right +1\nOK = switch \xB7 Back = done");
       v.set("left", "-1");
@@ -247,7 +247,7 @@ var S = {
     } else {
       var champ = self.setsA === 3 ? "A" : "B";
       v.set("header", "TEAM " + champ + " WINS!");
-      v.set("text", "Match   A " + self.setsA + " - " + self.setsB + " B\n" + self.setLine(self) + "\nOK = new match");
+      v.set("text", "Match   A " + numStr(self.setsA) + " - " + numStr(self.setsB) + " B\n" + self.setLine(self) + "\nOK = new match");
       v.set("left", "Undo");
       v.set("center", "New");
       v.set("right", "");
@@ -260,7 +260,7 @@ var S = {
     while (i < self.sets.length) {
       if (i > 0)
         s += " ";
-      s += self.sets[i].a + "-" + self.sets[i].b;
+      s += numStr(self.sets[i].a) + "-" + numStr(self.sets[i].b);
       i += 1;
     }
     return s;
@@ -270,11 +270,11 @@ var S = {
     var i = 0;
     while (i < self.sets.length) {
       var row = self.sets[i];
-      s += "Set " + (i + 1) + ":  " + row.a + " - " + row.b + "   (Team " + row.w + ")\n";
+      s += "Set " + numStr(i + 1) + ":  " + numStr(row.a) + " - " + numStr(row.b) + "   (Team " + row.w + ")\n";
       i += 1;
     }
     if (self.mode === "play") {
-      s += "Set " + self.setNum(self) + ":  " + self.a + " - " + self.b + "   (in play)\n";
+      s += "Set " + numStr(self.setNum(self)) + ":  " + numStr(self.a) + " - " + numStr(self.b) + "   (in play)\n";
     }
     return s;
   }

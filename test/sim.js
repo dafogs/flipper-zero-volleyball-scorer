@@ -33,9 +33,11 @@ function makeView(extraContracts) {
 function makeFactory(extraContracts) {
     return {
         make() { return makeView(extraContracts); },
-        makeWith(initial) {
+        makeWith(initial, children) {
             const v = makeView(extraContracts);
             for (const k in initial) v.props[k] = initial[k];
+            // Firmware passes submenu/list entries as the 2nd arg (children).
+            if (Array.isArray(children)) v.props.items = children;
             return v;
         },
     };

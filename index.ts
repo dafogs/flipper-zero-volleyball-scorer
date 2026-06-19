@@ -30,13 +30,25 @@ import * as submenu from "@flipperdevices/fz-sdk/gui/submenu";
 import * as textBox from "@flipperdevices/fz-sdk/gui/text_box";
 import * as notify from "@flipperdevices/fz-sdk/notification";
 
+// mJS forbids implicit number->string coercion in `+` (e.g. "A " + 5 throws
+// "implicit type conversion is prohibited" on-device). The Node test harness
+// coerces silently, so this only bites on hardware. Convert every number that
+// goes into a display string explicitly via this helper. Number.toString is a
+// firmware-backed SDK 0.1 feature (declared in global.d.ts).
+function numStr(n: number): string {
+    return n.toString();
+}
+
 // ---- Views (created once; the view dispatcher remembers them) --------------
 var views = {
     // Pick who serves first at the start of a match.
-    serve: submenu.makeWith({
-        header: "Who serves first?",
-        items: ["Team A serves", "Team B serves"],
-    }),
+    // NOTE: this firmware's submenu takes list entries as makeWith's SECOND
+    // argument (children), not an `items` prop. The bundled SDK 0.1.3 types are
+    // out of sync (they declare `items`), so we cast to call the real 2-arg form.
+    serve: (submenu as any).makeWith(
+        { header: "Who serves first?" },
+        ["Team A serves", "Team B serves"],
+    ),
     // The live scoreboard. Re-used for the PLAY, SET OVER and MATCH OVER modes
     // by rewriting its props.
     score: dialog.makeWith({
@@ -46,11 +58,11 @@ var views = {
         center: "Undo",
         right: "+B",
     }),
-    // In-game menu (opened with Back).
-    menu: submenu.makeWith({
-        header: "Menu",
-        items: ["Resume", "Adjust scores", "Swap serve", "Set history", "New match", "Exit app"],
-    }),
+    // In-game menu (opened with Back). Entries are children (2nd arg), see note above.
+    menu: (submenu as any).makeWith(
+        { header: "Menu" },
+        ["Resume", "Adjust scores", "Swap serve", "Set history", "New match", "Exit app"],
+    ),
     // Scrollable set history.
     history: textBox.makeWith({ text: "", font: "text", focus: "start" }),
 };
@@ -243,20 +255,20 @@ var S = {
         var v = self.views.score;
         if (self.mode === "play") {
             var srv = self.server === "A" ? "Team A" : "Team B";
-            v.set("header", "A  " + self.a + "    " + self.b + "  B");
+            v.set("header", "A  " + numStr(self.a) + "    " + numStr(self.b) + "  B");
             v.set("text",
-                "Set " + self.setNum(self) + "  -  first to " + self.target(self) + "\n" +
-                "Sets   A " + self.setsA + "   B " + self.setsB + "\n" +
+                "Set " + numStr(self.setNum(self)) + "  -  first to " + numStr(self.target(self)) + "\n" +
+                "Sets   A " + numStr(self.setsA) + "   B " + numStr(self.setsB) + "\n" +
                 "Serving:  " + srv);
             v.set("left", "+A");
             v.set("center", "Undo");
             v.set("right", "+B");
         } else if (self.mode === "setover") {
             var last = self.sets[self.sets.length - 1];
-            v.set("header", "Set " + self.sets.length + ": Team " + last.w + " wins");
+            v.set("header", "Set " + numStr(self.sets.length) + ": Team " + last.w + " wins");
             v.set("text",
-                "Score   " + last.a + " - " + last.b + "\n" +
-                "Sets    A " + self.setsA + "   B " + self.setsB + "\n" +
+                "Score   " + numStr(last.a) + " - " + numStr(last.b) + "\n" +
+                "Sets    A " + numStr(self.setsA) + "   B " + numStr(self.setsB) + "\n" +
                 "OK = next set");
             v.set("left", "Undo");
             v.set("center", "Next");
@@ -264,8 +276,8 @@ var S = {
         } else if (self.mode === "adjust") {
             // bracket the selected team so it's obvious what +/- affects
             var hdr = self.sel === "A"
-                ? "[A " + self.a + "]   " + self.b + " B"
-                : "A " + self.a + "   [" + self.b + " B]";
+                ? "[A " + numStr(self.a) + "]   " + numStr(self.b) + " B"
+                : "A " + numStr(self.a) + "   [" + numStr(self.b) + " B]";
             v.set("header", hdr);
             v.set("text",
                 "ADJUST  -  fixing Team " + self.sel + "\n" +
@@ -278,7 +290,7 @@ var S = {
             var champ = self.setsA === 3 ? "A" : "B";
             v.set("header", "TEAM " + champ + " WINS!");
             v.set("text",
-                "Match   A " + self.setsA + " - " + self.setsB + " B\n" +
+                "Match   A " + numStr(self.setsA) + " - " + numStr(self.setsB) + " B\n" +
                 self.setLine(self) + "\n" +
                 "OK = new match");
             v.set("left", "Undo");
@@ -293,7 +305,7 @@ var S = {
         var i = 0;
         while (i < self.sets.length) {
             if (i > 0) s += " ";
-            s += self.sets[i].a + "-" + self.sets[i].b;
+            s += numStr(self.sets[i].a) + "-" + numStr(self.sets[i].b);
             i += 1;
         }
         return s;
@@ -304,12 +316,12 @@ var S = {
         var i = 0;
         while (i < self.sets.length) {
             var row = self.sets[i];
-            s += "Set " + (i + 1) + ":  " + row.a + " - " + row.b +
+            s += "Set " + numStr(i + 1) + ":  " + numStr(row.a) + " - " + numStr(row.b) +
                 "   (Team " + row.w + ")\n";
             i += 1;
         }
         if (self.mode === "play") {
-            s += "Set " + self.setNum(self) + ":  " + self.a + " - " + self.b +
+            s += "Set " + numStr(self.setNum(self)) + ":  " + numStr(self.a) + " - " + numStr(self.b) +
                 "   (in play)\n";
         }
         return s;

@@ -1,5 +1,51 @@
 # PROGRESS — volleyball-scoring (Flipper Zero)
 
+## 2026-06-19 — Fix on-device runtime error: implicit number→string (via Claude, Cowork)
+
+**Bug**
+- `ERROR implicit type conversion is prohibited` at bundle line 225. The render
+  code builds display strings like `"A  " + self.a + ...` where `self.a` is a
+  number. mJS refuses to implicitly coerce number→string in `+`. The Node sim
+  coerces silently, so it passed there but failed on hardware.
+
+**Fix**
+- Added `numStr(n)` helper (wraps `Number.toString`, a firmware-backed SDK 0.1
+  feature per `global.d.ts`) and wrapped every number that enters a display
+  string in `render`, `setLine`, and `historyText`. Pure arithmetic (e.g.
+  `setNum`) left alone. Rebuilt; sim **50/50 green**.
+- If `.toString()` ever errors on a given firmware, it's a one-line swap inside
+  `numStr` (e.g. a `chr()`-based digit builder).
+
+**Also noted — benign "outdated script" warning:** the build stamps
+`checkSdkCompatibility(0, 1)` from `fz-sdk@0.1.3`. Dan's firmware ships a newer
+JS SDK, so it flags the script as outdated but still runs. Silencing it means
+bumping the `@flipperdevices/fz-sdk` dev dep to match firmware (separate task).
+
+**State:** source + bundle fixed, sim green. Redeploy `npm start`, rerun.
+
+## 2026-06-19 — Fix on-device runtime error: submenu items are children (via Claude, Cowork)
+
+**Bug**
+- After the brace fix, on-device run got past parsing but threw
+  `view has no prop named "items"` at the first `submenu.makeWith`. Verified
+  against firmware source (`js_app/modules/js_gui/submenu.c` + `js_gui.c`):
+  this firmware's submenu descriptor has ONLY a `header` prop. List entries are
+  **children**, supplied as the SECOND argument of
+  `makeWith(props, children)` (or via `setChildren`/`addChild`). The bundled
+  SDK 0.1.3 types are out of sync — they declare an `items` prop that the
+  firmware doesn't have.
+
+**Fix**
+- Rewrote both submenu views (`serve`, `menu`) to the 2-arg children form,
+  casting through `(submenu as any).makeWith(...)` since the SDK type only
+  allows one arg. Verified `dialog` (header/text/left/center/right) and
+  `text_box` (text/font/focus) props DO match firmware — no change needed.
+- Updated `test/sim.js` submenu mock to accept the children arg. Rebuilt;
+  sim **50/50 green**. Bundle now emits
+  `submenu.makeWith({header...}, [...entries])`.
+
+**State:** source + bundle fixed, sim green. Redeploy with `npm start`, rerun.
+
 ## 2026-06-19 — Fix on-device parse error: brace all if/else (via Claude, Cowork)
 
 **Bug**
