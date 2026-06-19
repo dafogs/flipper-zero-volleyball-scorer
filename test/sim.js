@@ -25,6 +25,11 @@ function makeView(extraContracts) {
     const v = {
         props: {},
         set(k, val) { this.props[k] = val; },
+        // Firmware list views store entries as children; mirror that into
+        // props.items so tests can read the rendered list.
+        setChildren(arr) { this.props.items = arr; },
+        addChild(c) { (this.props.items || (this.props.items = [])).push(c); },
+        resetChildren() { this.props.items = []; },
     };
     for (const name of extraContracts) v[name] = contract();
     return v;
@@ -68,6 +73,8 @@ const modules = {
     "@flipperdevices/fz-sdk/gui/dialog": makeFactory(["input"]),
     "@flipperdevices/fz-sdk/gui/submenu": makeFactory(["chosen"]),
     "@flipperdevices/fz-sdk/gui/text_box": makeFactory(["chosen"]),
+    "@flipperdevices/fz-sdk/gui/text_input": makeFactory(["input"]),
+    "@flipperdevices/fz-sdk/gui/widget": makeFactory(["button"]),
     "@flipperdevices/fz-sdk/notification": {
         success() { notifications.push("success"); },
         error() { notifications.push("error"); },
@@ -100,7 +107,11 @@ vm.runInContext(code, sandbox, { filename: "dist/index.js" });
 // The dialog's `input` contract is whatever the score view registered. We find
 // each view by which contract a subscription is keyed to and what it does.
 // Simpler: the app switched to the serve view at boot -> currentView is it.
-const serveView = currentView; // submenu shown at boot
+// Boot now shows the widget splash; press its Start button to reach serve-select.
+const splashView = currentView;
+const splashHasButton = splashView.button !== undefined;
+fire(splashView.button, { key: "center", type: "short" }); // Start
+const serveView = currentView; // submenu shown after splash
 
 // Map subscription ids to a label by probing. We know there are 4 subs:
 //   serve.chosen, score.input, menu.chosen, navigation.
@@ -143,10 +154,12 @@ const otherSubIds = Object.keys(subs).map(Number)
 // serve.chosen(0) which switches to the score view; then currentView is it.
 
 console.log("=== Scenario 1: Team A wins a set 25-23, serve tracking ===");
+ok(splashHasButton, "boot shows the widget splash with a Start button");
+ok(currentView === serveView, "splash Start advances to serve-select");
 fire(serveChosen, 0); // Team A serves first
 const score = currentView; // dialog
 ok(score.props.header !== undefined, "score view shown after serve select");
-eq(score.props.text.indexOf("Serving:  Team A") >= 0, true, "Team A serves first");
+eq(score.props.text.indexOf("Serving:  A") >= 0, true, "Team A serves first");
 
 const scoreInput = score.input;
 // helper to read header/text
@@ -156,12 +169,12 @@ function T() { return score.props.text; }
 // A scores once -> A still serving, 1-0
 fire(scoreInput, "left");
 eq(H(), "A  1    0  B", "header 1-0");
-eq(T().indexOf("Serving:  Team A") >= 0, true, "A keeps serve after winning own rally");
+eq(T().indexOf("Serving:  A") >= 0, true, "A keeps serve after winning own rally");
 
 // B scores -> side-out, B serves, 1-1
 fire(scoreInput, "right");
 eq(H(), "A  1    1  B", "header 1-1");
-eq(T().indexOf("Serving:  Team B") >= 0, true, "side-out: B serves after winning rally");
+eq(T().indexOf("Serving:  B") >= 0, true, "side-out: B serves after winning rally");
 
 // drive to 24-23 for A then 25-23
 function setScore(a, b) {
@@ -174,7 +187,7 @@ eq(H(), "A  24    23  B", "header 24-23");
 ok(T().indexOf("first to 25") >= 0, "set 1 target is 25");
 // A scores -> 25-23, set over (win by 2)
 fire(scoreInput, "left");
-eq(H().indexOf("Team A wins") >= 0, true, "set over, A wins set 1");
+eq(H().indexOf("A wins") >= 0, true, "set over, A wins set 1");
 eq(T().indexOf("Sets    A 1   B 0") >= 0, true, "sets 1-0 after set 1");
 eq(score.props.center, "Next", "OK = Next set in setover");
 
@@ -183,7 +196,7 @@ console.log("=== Scenario 2: win-by-2 deuce (no cap) ===");
 fire(scoreInput, "center"); // next set
 eq(score.props.center, "Undo", "back to play mode");
 // alternate first serve: set 2 -> Team B serves first
-eq(T().indexOf("Serving:  Team B") >= 0, true, "set 2 opens with Team B serving (alternation)");
+eq(T().indexOf("Serving:  B") >= 0, true, "set 2 opens with Team B serving (alternation)");
 // 24-24 then 26-24 (deuce)
 for (let i = 0; i < 24; i++) fire(scoreInput, "left");  // A 24
 for (let i = 0; i < 24; i++) fire(scoreInput, "right"); // B 24
@@ -192,7 +205,7 @@ fire(scoreInput, "left"); // 25-24, not over (lead 1)
 eq(H(), "A  25    24  B", "25-24 not over");
 ok(score.props.center === "Undo", "still in play at 25-24");
 fire(scoreInput, "left"); // 26-24, over
-eq(H().indexOf("Team A wins") >= 0, true, "26-24 wins by 2");
+eq(H().indexOf("A wins") >= 0, true, "26-24 wins by 2");
 
 console.log("=== Scenario 3: Undo across a set boundary ===");
 // currently setover for set 2 (A won 26-24), sets A2 B0
@@ -218,7 +231,7 @@ fire(scoreInput, "center"); // set 5 (decider)
 ok(T().indexOf("first to 15") >= 0, "decider set 5 target is 15");
 // A wins decider 15-0
 for (let i = 0; i < 15; i++) fire(scoreInput, "left");
-eq(H().indexOf("TEAM A WINS") >= 0, true, "match over, A champion");
+eq(H().indexOf("A WINS") >= 0, true, "match over, A champion");
 eq(score.props.center, "New", "OK = New match at match over");
 ok(T().indexOf("A 3 - 2 B") >= 0, "final match score 3-2");
 
@@ -228,7 +241,7 @@ fire(scoreInput, "center");
 ok(currentView === serveView, "New match returns to serve select");
 fire(serveChosen, 1); // Team B serves first this time
 const score2 = currentView;
-eq(score2.props.text.indexOf("Serving:  Team B") >= 0, true, "B serves first");
+eq(score2.props.text.indexOf("Serving:  B") >= 0, true, "B serves first");
 // score a couple, open menu via navigation (Back)
 fire(score2.input, "left"); // A 1
 fire(navigation); // Back -> menu
@@ -240,8 +253,8 @@ ok(currentView === score2, "Resume returns to score");
 // Swap serve (now index 2 after inserting "Adjust scores" at index 1)
 fire(navigation); fire(menuChosen, 2);
 eq(currentView.props.text.indexOf("Serving:") >= 0, true, "swap serve renders");
-// Exit app (now index 5)
-fire(navigation); fire(menuChosen, 5);
+// Exit app (now index 7 after inserting Rename teams + Settings)
+fire(navigation); fire(menuChosen, 7);
 eq(stopped, true, "Exit app stops the event loop");
 
 console.log("=== Scenario 6: Adjust mode (free +/- correction) ===");
@@ -288,12 +301,45 @@ eq(sc.props.header, "A  24    4  B", "24-4");
 fire(navigation); fire(currentView.chosen, 1); // Adjust, A selected
 fire2("right"); // A 25
 fire(navigation); // done -> settle
-eq(sc.props.header.indexOf("Team A wins") >= 0, true, "correction to 25-4 ends the set");
+eq(sc.props.header.indexOf("A wins") >= 0, true, "correction to 25-4 ends the set");
 eq(sc.props.center, "Next", "settled into setover");
 // Undo the whole correction session in one shot
 fire2("left"); // Undo (setover left)
 eq(sc.props.center, "Undo", "single undo reverts the correction session");
 eq(sc.props.header, "A  24    4  B", "back to 24-4 pre-adjust");
+
+console.log("=== Scenario 8: team names + settings alert toggle ===");
+fire(serveChosen, 0);                 // fresh match (names persist; still A/B here)
+const s8 = currentView;               // the score dialog
+// Rename teams via menu (index 4 after Resume/Adjust/Swap/History)
+fire(navigation);
+fire(currentView.chosen, 4);          // -> name keyboard, Team A first
+const kbd = currentView;
+ok(kbd.input !== undefined, "Rename opens the keyboard (text_input) view");
+eq(kbd.props.header, "Team A name", "keyboard prompts for Team A first");
+fire(kbd.input, "WILD");              // Team A name
+eq(kbd.props.header, "Team B name", "keyboard advances to Team B");
+fire(kbd.input, "TIG");               // Team B name -> back to score
+eq(currentView, s8, "naming returns to the scoreboard");
+eq(s8.props.header, "WILD  0    0  TIG", "scoreboard header shows custom names");
+eq(s8.props.text.indexOf("Serving:  WILD") >= 0, true, "serving line shows custom name");
+// Settings (index 5): toggle the end-of-set alert off
+fire(navigation);
+fire(currentView.chosen, 5);          // -> settings
+const setv = currentView;
+ok(setv.props.items[0].indexOf("ON") >= 0, "settings starts with alert ON");
+fire(setv.chosen, 0);                 // toggle
+ok(setv.props.items[0].indexOf("OFF") >= 0, "toggling flips alert to OFF");
+fire(setv.chosen, 1);                 // Back -> menu
+fire(currentView.chosen, 0);          // Resume -> score
+eq(currentView, s8, "resume returns to score with alert OFF");
+// With alert OFF, the set-winning point must be silent (LED only, no success())
+const beforeN = notifications.length;
+for (let i = 0; i < 25; i++) fire(s8.input, "left"); // A wins the set 25-0
+const afterN = notifications.slice(beforeN);
+ok(afterN.indexOf("success") < 0, "alert OFF: no sound/vibration on set end");
+ok(afterN[afterN.length - 1].indexOf("blink") >= 0, "alert OFF: silent LED blink on set end");
+eq(s8.props.header.indexOf("WILD wins") >= 0, true, "set-over header uses custom name");
 
 console.log("");
 console.log("RESULT: " + pass + " passed, " + fail + " failed");

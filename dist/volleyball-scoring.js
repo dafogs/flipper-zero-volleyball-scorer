@@ -9,6 +9,8 @@ var gui = require("@flipperdevices/fz-sdk/gui");
 var dialog = require("@flipperdevices/fz-sdk/gui/dialog");
 var submenu = require("@flipperdevices/fz-sdk/gui/submenu");
 var textBox = require("@flipperdevices/fz-sdk/gui/text_box");
+var textInput = require("@flipperdevices/fz-sdk/gui/text_input");
+var widget = require("@flipperdevices/fz-sdk/gui/widget");
 var notify = require("@flipperdevices/fz-sdk/notification");
 function numStr(n) {
   return n.toString();
@@ -29,17 +31,53 @@ var views = {
     right: "+B"
   }),
   // In-game menu (opened with Back). Entries are children (2nd arg), see note above.
-  menu: submenu.makeWith({ header: "Menu" }, ["Resume", "Adjust scores", "Swap serve", "Set history", "New match", "Exit app"]),
+  menu: submenu.makeWith({ header: "Menu" }, ["Resume", "Adjust scores", "Swap serve", "Set history", "Rename teams", "Settings", "New match", "Exit app"]),
   // Scrollable set history.
-  history: textBox.makeWith({ text: "", font: "text", focus: "start" })
+  history: textBox.makeWith({ text: "", font: "text", focus: "start" }),
+  // Keyboard for entering team names (reused for both teams).
+  nameInput: textInput.makeWith({
+    header: "Team A name",
+    minLength: 0,
+    maxLength: 7,
+    defaultText: "A",
+    defaultTextClear: true
+  }),
+  // Settings toggles. Children are refreshed on entry to reflect current state.
+  settings: submenu.makeWith({ header: "Settings" }, ["Alert: ON (sound+vibe)", "Back"]),
+  // Title splash (widget view). 128x64: title, a crisp net line, subtitle,
+  // Start button. Built from straight lines + text only (the widget can't
+  // draw curves, so a net reads cleaner than a round ball). No props of its
+  // own; elements are children.
+  splash: widget.makeWith({}, [
+    { element: "string", x: 64, y: 3, align: "tm", font: "primary", text: "VOLLEYBALL" },
+    // Net: two posts, top/bottom tapes, and vertical mesh strings.
+    { element: "line", x1: 16, y1: 19, x2: 16, y2: 37 },
+    // left post
+    { element: "line", x1: 112, y1: 19, x2: 112, y2: 37 },
+    // right post
+    { element: "line", x1: 16, y1: 23, x2: 112, y2: 23 },
+    // top tape
+    { element: "line", x1: 16, y1: 34, x2: 112, y2: 34 },
+    // bottom tape
+    { element: "line", x1: 28, y1: 23, x2: 28, y2: 34 },
+    { element: "line", x1: 40, y1: 23, x2: 40, y2: 34 },
+    { element: "line", x1: 52, y1: 23, x2: 52, y2: 34 },
+    { element: "line", x1: 64, y1: 23, x2: 64, y2: 34 },
+    { element: "line", x1: 76, y1: 23, x2: 76, y2: 34 },
+    { element: "line", x1: 88, y1: 23, x2: 88, y2: 34 },
+    { element: "line", x1: 100, y1: 23, x2: 100, y2: 34 },
+    { element: "string", x: 64, y: 40, align: "tm", font: "secondary", text: "Score Keeper" },
+    { element: "button", button: "center", text: "Start" }
+  ])
 };
 var S = {
   // module handles, reached via self.* inside callbacks (no closures allowed)
-  gui: gui,
+  gui,
   loop: eventLoop,
-  views: views,
-  // which view is currently on screen: "serve" | "score" | "menu" | "history"
-  screen: "serve",
+  views,
+  // which view is currently on screen:
+  //   "splash" | "serve" | "score" | "menu" | "history" | "settings" | "nameInput"
+  screen: "splash",
   // scoreboard mode: "play" | "setover" | "matchover"
   mode: "play",
   a: 0,
@@ -60,9 +98,35 @@ var S = {
   // completed sets: array of { a, b, w } (w = winner "A"/"B")
   undoStack: [],
   // snapshots for Undo
+  nameA: "A",
+  // display name for team A (RAM only; resets on app exit)
+  nameB: "B",
+  // display name for team B
+  naming: "A",
+  // which team the keyboard is currently entering: "A" | "B"
+  alertOn: true,
+  // sound+vibration when a set/match ends (Settings toggle)
   // --- rules helpers ------------------------------------------------------
   setNum: function(self) {
     return self.setsA + self.setsB + 1;
+  },
+  // Display name for a team key ("A" | "B").
+  teamName: function(self, t) {
+    return t === "A" ? self.nameA : self.nameB;
+  },
+  // End-of-set / end-of-match feedback, gated by the alert setting. When off,
+  // a silent green LED flash replaces the sound+vibration cue.
+  endAlert: function(self) {
+    if (self.alertOn) {
+      notify.success();
+    } else {
+      notify.blink("green", "long");
+    }
+  },
+  // Rebuild the Settings list to reflect the current toggle state.
+  refreshSettings: function(self) {
+    var label = self.alertOn ? "Alert: ON (sound+vibe)" : "Alert: OFF (silent)";
+    self.views.settings.setChildren([label, "Back"]);
   },
   // First-to target for the current set: 15 for a 2-2 decider, else 25.
   target: function(self) {
@@ -113,7 +177,7 @@ var S = {
       lead = -lead;
     if (hi >= t && lead >= 2) {
       var w = self.a > self.b ? "A" : "B";
-      self.sets.push({ a: self.a, b: self.b, w: w });
+      self.sets.push({ a: self.a, b: self.b, w });
       if (w === "A") {
         self.setsA += 1;
       } else {
@@ -141,7 +205,7 @@ var S = {
     }
     self.server = team;
     if (self.evaluate(self)) {
-      notify.success();
+      self.endAlert(self);
     } else {
       notify.blink("green", "short");
     }
@@ -216,23 +280,24 @@ var S = {
   exitAdjust: function(self) {
     if (self.mode !== "adjust")
       return;
-    if (self.evaluate(self))
-      notify.success();
+    if (self.evaluate(self)) {
+      self.endAlert(self);
+    }
     self.render(self);
   },
   // --- rendering ----------------------------------------------------------
   render: function(self) {
     var v = self.views.score;
     if (self.mode === "play") {
-      var srv = self.server === "A" ? "Team A" : "Team B";
-      v.set("header", "A  " + numStr(self.a) + "    " + numStr(self.b) + "  B");
+      var srv = self.teamName(self, self.server);
+      v.set("header", self.nameA + "  " + numStr(self.a) + "    " + numStr(self.b) + "  " + self.nameB);
       v.set("text", "Set " + numStr(self.setNum(self)) + "  -  first to " + numStr(self.target(self)) + "\nSets   A " + numStr(self.setsA) + "   B " + numStr(self.setsB) + "\nServing:  " + srv);
       v.set("left", "+A");
       v.set("center", "Undo");
       v.set("right", "+B");
     } else if (self.mode === "setover") {
       var last = self.sets[self.sets.length - 1];
-      v.set("header", "Set " + numStr(self.sets.length) + ": Team " + last.w + " wins");
+      v.set("header", "Set " + numStr(self.sets.length) + ": " + self.teamName(self, last.w) + " wins");
       v.set("text", "Score   " + numStr(last.a) + " - " + numStr(last.b) + "\nSets    A " + numStr(self.setsA) + "   B " + numStr(self.setsB) + "\nOK = next set");
       v.set("left", "Undo");
       v.set("center", "Next");
@@ -246,7 +311,7 @@ var S = {
       v.set("right", "+1");
     } else {
       var champ = self.setsA === 3 ? "A" : "B";
-      v.set("header", "TEAM " + champ + " WINS!");
+      v.set("header", self.teamName(self, champ) + " WINS!");
       v.set("text", "Match   A " + numStr(self.setsA) + " - " + numStr(self.setsB) + " B\n" + self.setLine(self) + "\nOK = new match");
       v.set("left", "Undo");
       v.set("center", "New");
@@ -270,7 +335,7 @@ var S = {
     var i = 0;
     while (i < self.sets.length) {
       var row = self.sets[i];
-      s += "Set " + numStr(i + 1) + ":  " + numStr(row.a) + " - " + numStr(row.b) + "   (Team " + row.w + ")\n";
+      s += "Set " + numStr(i + 1) + ":  " + numStr(row.a) + " - " + numStr(row.b) + "   (" + self.teamName(self, row.w) + ")\n";
       i += 1;
     }
     if (self.mode === "play") {
@@ -279,6 +344,12 @@ var S = {
     return s;
   }
 };
+eventLoop.subscribe(views.splash.button, function(_sub, _evt, S2) {
+  if (S2.screen !== "splash")
+    return;
+  S2.screen = "serve";
+  S2.gui.viewDispatcher.switchTo(S2.views.serve);
+}, S);
 eventLoop.subscribe(views.serve.chosen, function(_sub, index, S2) {
   S2.startServer = index === 0 ? "A" : "B";
   S2.newMatch(S2);
@@ -338,10 +409,44 @@ eventLoop.subscribe(views.menu.chosen, function(_sub, index, S2) {
     S2.screen = "history";
     S2.gui.viewDispatcher.switchTo(S2.views.history);
   } else if (index === 4) {
+    S2.naming = "A";
+    S2.views.nameInput.set("header", "Team A name");
+    S2.views.nameInput.set("defaultText", S2.nameA);
+    S2.screen = "nameInput";
+    S2.gui.viewDispatcher.switchTo(S2.views.nameInput);
+  } else if (index === 5) {
+    S2.refreshSettings(S2);
+    S2.screen = "settings";
+    S2.gui.viewDispatcher.switchTo(S2.views.settings);
+  } else if (index === 6) {
     S2.screen = "serve";
     S2.gui.viewDispatcher.switchTo(S2.views.serve);
-  } else if (index === 5) {
+  } else if (index === 7) {
     S2.loop.stop();
+  }
+}, S);
+eventLoop.subscribe(views.nameInput.input, function(_sub, text, S2) {
+  var t = text;
+  if (S2.naming === "A") {
+    S2.nameA = t === "" ? "A" : t;
+    S2.naming = "B";
+    S2.views.nameInput.set("header", "Team B name");
+    S2.views.nameInput.set("defaultText", S2.nameB);
+    S2.gui.viewDispatcher.switchTo(S2.views.nameInput);
+  } else {
+    S2.nameB = t === "" ? "B" : t;
+    S2.render(S2);
+    S2.screen = "score";
+    S2.gui.viewDispatcher.switchTo(S2.views.score);
+  }
+}, S);
+eventLoop.subscribe(views.settings.chosen, function(_sub, index, S2) {
+  if (index === 0) {
+    S2.alertOn = !S2.alertOn;
+    S2.refreshSettings(S2);
+  } else {
+    S2.screen = "menu";
+    S2.gui.viewDispatcher.switchTo(S2.views.menu);
   }
 }, S);
 eventLoop.subscribe(gui.viewDispatcher.navigation, function(_sub, _item, S2) {
@@ -358,9 +463,15 @@ eventLoop.subscribe(gui.viewDispatcher.navigation, function(_sub, _item, S2) {
   } else if (S2.screen === "history") {
     S2.screen = "menu";
     S2.gui.viewDispatcher.switchTo(S2.views.menu);
+  } else if (S2.screen === "settings") {
+    S2.screen = "menu";
+    S2.gui.viewDispatcher.switchTo(S2.views.menu);
+  } else if (S2.screen === "nameInput") {
+    S2.screen = "menu";
+    S2.gui.viewDispatcher.switchTo(S2.views.menu);
   } else {
     S2.loop.stop();
   }
 }, S);
-gui.viewDispatcher.switchTo(views.serve);
+gui.viewDispatcher.switchTo(views.splash);
 eventLoop.run();

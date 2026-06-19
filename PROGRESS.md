@@ -1,5 +1,64 @@
 # PROGRESS — volleyball-scoring (Flipper Zero)
 
+## 2026-06-19 — v1.1: widget splash screen (via Claude, Cowork)
+
+**Added a title splash** shown at boot using the `widget` view (drawing): a
+"VOLLEYBALL" / "Score Keeper" title, a drawn volleyball (circle + 3 seam lines),
+and a center "Start" button. Pressing Start → serve-select; Back on the splash
+exits the app.
+
+**Firmware confirmed:** device is **1.4.3** (Dec 2025, official) — well past JS
+SDK 1.0, so `widget` is available. The bundled `fz-sdk@0.1.3` predates the
+`widget` type, so added `flipper-extra.d.ts` ambient shim
+(`declare module ".../gui/widget"`) to satisfy `tsc`; esbuild keeps it external
+and the device resolves `require(".../gui/widget")` at runtime like the rest.
+
+**Splash element schema** (firmware `widget.c`): each child is an object with an
+`element` field — `string`/`string_multiline` (x,y,align "tl".."br",font,text),
+`circle`/`rect` (x,y,radius/size,fill), `line` (x1,y1,x2,y2), `button`
+(button:"left"|"center"|"right", text → `button` event {key,type}). Splash
+coords are a first guess for 128x64; tweak after eyeballing on-device.
+
+**Tests:** sim mocks `gui/widget`, advances past the splash at boot, asserts the
+Start→serve transition. **64/64 green.** tsc clean (exit 0).
+
+**Splash redesign (Dan's call):** the drawn ball looked rough (widget can't draw
+curves). Replaced with a clean type+net layout: "VOLLEYBALL" title, a net drawn
+from straight lines (2 posts, top/bottom tapes, 7 vertical mesh strings),
+"Score Keeper" subtitle, Start button. All crisp primitives.
+
+**Still open:** the "outdated script" warning (cosmetic — bump `fz-sdk` dep to
+match firmware to silence). Splash spacing can still be nudged after eyeballing.
+
+## 2026-06-19 — v1.1 features: team names + settings (via Claude, Cowork)
+
+**Added (JS, RAM-only state like the rest of the app):**
+- **Team names** — menu "Rename teams" opens the `text_input` keyboard for Team
+  A then Team B (cap 7 chars, blank falls back to A/B). Names thread through the
+  scoreboard header, serving line, set-/match-over headers, and history. Adjust
+  screen keeps A/B letters for space. Defaults render byte-identical to before,
+  so existing sim assertions held.
+- **Settings** — menu "Settings" → one toggle for the end-of-set alert. The JS
+  `notification` module bundles sound+vibration in `success()` and can't split
+  them, so OFF swaps in a silent green LED `blink` instead. (`endAlert` helper
+  gates both the scoring and adjust-settle paths.)
+- Menu reindexed to: Resume, Adjust, Swap serve, Set history, Rename teams,
+  Settings, New match, Exit (0–7). Back handles the new settings/nameInput
+  screens.
+
+**Tests/build:** extended sim with Scenario 8 (rename flow + toggle + verifies
+the alert really goes silent). **62/62 green.** `tsc` clean (exit 0) — important
+because the device build is `tsc && esbuild`, so a type error would abort it.
+Note: the `subscribe()` callback item type comes through unbound (the `Args`
+constraint isn't met by the big state object), so the keyboard `text` is coerced
+via `text as any`.
+
+**Still open:** widget-drawn splash screen — needs the device's JS SDK version
+(widget requires ≥1.0) before building. Naming layout on the 128px header to be
+eyeballed on-device (cap can shrink if long names wrap).
+
+**State:** source + bundle rebuilt, sim green, tsc clean. Redeploy `npm start`.
+
 ## 2026-06-19 — Fix on-device runtime error: implicit number→string (via Claude, Cowork)
 
 **Bug**
