@@ -1,0 +1,13 @@
+{
+  "name": "volleyball-scoring",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc && node node_modules/@flipperdevices/fz-sdk/sdk.js build",
+    "start": "npm run build && node node_modules/@flipperdevices/fz-sdk/sdk.js upload",
+    "test": "npm run build && node test/sim.js"
+  },
+  "devDependencies": {
+    "@flipperdevices/fz-sdk": "^0.1",
+    "typescript": "^5.6.3"
+  }
+}
