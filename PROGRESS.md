@@ -1,5 +1,24 @@
 # PROGRESS — volleyball-scoring (Flipper Zero)
 
+## 2026-06-18 — Add Adjust mode (free score correction) (via Claude, Cowork)
+
+**What was done**
+- Per Dan's request: added a manual **Adjust scores** correction mode beyond
+  the existing Undo. One screen, fully one-handed: Left = −1, Right = +1 on the
+  selected team, OK = switch team (A⇄B), Back = done. Selected team shown in
+  brackets; scores clamp at 0; opening Adjust after a set ended reopens it; the
+  whole session is a single Undo.
+- Refactored set-end detection into a shared `evaluate()` so a correction that
+  reaches 25 (win by 2) settles into Set Over just like a normal point.
+- Added menu entry "Adjust scores" (reindexed menu handlers).
+- Extended `test/sim.js` with adjust scenarios (correction, A⇄B move, 0-clamp,
+  correction-completes-a-set, single-undo-reverts-session). **50/50 green.**
+- Tooling fix: excluded `test/` from `tsconfig.json` so the Flipper `noLib`
+  build doesn't try to type-check the Node test harness.
+
+**State:** branch `claude/flipper-volleyball-scorer`, build + tests green,
+deployable `dist/volleyball-scoring.js` rebuilt. NOT pushed.
+
 ## 2026-06-18 — Initial build (via Claude, Cowork)
 
 **What was done**

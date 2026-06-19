@@ -28,7 +28,7 @@ var views = {
   // In-game menu (opened with Back).
   menu: submenu.makeWith({
     header: "Menu",
-    items: ["Resume", "Swap serve", "Set history", "New match", "Exit app"]
+    items: ["Resume", "Adjust scores", "Swap serve", "Set history", "New match", "Exit app"]
   }),
   // Scrollable set history.
   history: textBox.makeWith({ text: "", font: "text", focus: "start" })
@@ -54,6 +54,8 @@ var S = {
   // who is serving right now: "A" | "B"
   startServer: "A",
   // who served first in set 1 (sets alternate from here)
+  sel: "A",
+  // team selected in Adjust mode: "A" | "B"
   sets: [],
   // completed sets: array of { a, b, w } (w = winner "A"/"B")
   undoStack: [],
@@ -99,16 +101,11 @@ var S = {
     if (self.undoStack.length > 80)
       self.undoStack.splice(0, 1);
   },
-  // Award a rally to team "A" or "B".
-  score: function(self, team) {
-    if (self.mode !== "play")
-      return;
-    self.snapshot(self);
-    if (team === "A")
-      self.a += 1;
-    else
-      self.b += 1;
-    self.server = team;
+  // Looks at the current points and, if the set is decided (target reached
+  // with a 2-point lead), records the set and advances mode to setover or
+  // matchover. Otherwise sets mode back to play. Returns true if the set
+  // ended. Shared by normal scoring and manual correction.
+  evaluate: function(self) {
     var t = self.target(self);
     var hi = self.a > self.b ? self.a : self.b;
     var lead = self.a - self.b;
@@ -121,15 +118,29 @@ var S = {
         self.setsA += 1;
       else
         self.setsB += 1;
-      if (self.setsA === 3 || self.setsB === 3) {
+      if (self.setsA === 3 || self.setsB === 3)
         self.mode = "matchover";
-      } else {
+      else
         self.mode = "setover";
-      }
-      notify.success();
-    } else {
-      notify.blink("green", "short");
+      return true;
     }
+    self.mode = "play";
+    return false;
+  },
+  // Award a rally to team "A" or "B".
+  score: function(self, team) {
+    if (self.mode !== "play")
+      return;
+    self.snapshot(self);
+    if (team === "A")
+      self.a += 1;
+    else
+      self.b += 1;
+    self.server = team;
+    if (self.evaluate(self))
+      notify.success();
+    else
+      notify.blink("green", "short");
     self.render(self);
   },
   undo: function(self) {
@@ -161,6 +172,50 @@ var S = {
     self.undoStack = [];
     self.render(self);
   },
+  // --- manual score correction -------------------------------------------
+  // Free +/- adjustment of either team's points, for fixing courtside
+  // mistakes (wrong button, a call reversal, a missed point). One screen:
+  //   Left = -1, Right = +1 on the SELECTED team, OK = switch team,
+  //   Back = done (re-checks whether the corrected score ends the set).
+  enterAdjust: function(self) {
+    var guard = 0;
+    while ((self.mode === "setover" || self.mode === "matchover") && self.undoStack.length > 0 && guard < 10) {
+      self.undo(self);
+      guard += 1;
+    }
+    self.snapshot(self);
+    self.mode = "adjust";
+    self.sel = "A";
+    self.render(self);
+  },
+  adjustDelta: function(self, d) {
+    if (self.mode !== "adjust")
+      return;
+    if (self.sel === "A") {
+      self.a += d;
+      if (self.a < 0)
+        self.a = 0;
+    } else {
+      self.b += d;
+      if (self.b < 0)
+        self.b = 0;
+    }
+    notify.blink(d > 0 ? "green" : "blue", "short");
+    self.render(self);
+  },
+  switchSel: function(self) {
+    if (self.mode !== "adjust")
+      return;
+    self.sel = self.sel === "A" ? "B" : "A";
+    self.render(self);
+  },
+  exitAdjust: function(self) {
+    if (self.mode !== "adjust")
+      return;
+    if (self.evaluate(self))
+      notify.success();
+    self.render(self);
+  },
   // --- rendering ----------------------------------------------------------
   render: function(self) {
     var v = self.views.score;
@@ -178,6 +233,13 @@ var S = {
       v.set("left", "Undo");
       v.set("center", "Next");
       v.set("right", "");
+    } else if (self.mode === "adjust") {
+      var hdr = self.sel === "A" ? "[A " + self.a + "]   " + self.b + " B" : "A " + self.a + "   [" + self.b + " B]";
+      v.set("header", hdr);
+      v.set("text", "ADJUST  -  fixing Team " + self.sel + "\nLeft -1     Right +1\nOK = switch \xB7 Back = done");
+      v.set("left", "-1");
+      v.set("center", self.sel === "A" ? "To B" : "To A");
+      v.set("right", "+1");
     } else {
       var champ = self.setsA === 3 ? "A" : "B";
       v.set("header", "TEAM " + champ + " WINS!");
@@ -228,6 +290,13 @@ eventLoop.subscribe(views.score.input, function(_sub, button, S2) {
       S2.score(S2, "B");
     else if (button === "center")
       S2.undo(S2);
+  } else if (S2.mode === "adjust") {
+    if (button === "left")
+      S2.adjustDelta(S2, -1);
+    else if (button === "right")
+      S2.adjustDelta(S2, 1);
+    else if (button === "center")
+      S2.switchSel(S2);
   } else if (S2.mode === "setover") {
     if (button === "left")
       S2.undo(S2);
@@ -249,25 +318,33 @@ eventLoop.subscribe(views.menu.chosen, function(_sub, index, S2) {
     S2.screen = "score";
     S2.gui.viewDispatcher.switchTo(S2.views.score);
   } else if (index === 1) {
+    S2.enterAdjust(S2);
+    S2.screen = "score";
+    S2.gui.viewDispatcher.switchTo(S2.views.score);
+  } else if (index === 2) {
     S2.server = S2.server === "A" ? "B" : "A";
     S2.render(S2);
     S2.screen = "score";
     S2.gui.viewDispatcher.switchTo(S2.views.score);
-  } else if (index === 2) {
+  } else if (index === 3) {
     S2.views.history.set("text", S2.historyText(S2));
     S2.screen = "history";
     S2.gui.viewDispatcher.switchTo(S2.views.history);
-  } else if (index === 3) {
+  } else if (index === 4) {
     S2.screen = "serve";
     S2.gui.viewDispatcher.switchTo(S2.views.serve);
-  } else if (index === 4) {
+  } else if (index === 5) {
     S2.loop.stop();
   }
 }, S);
 eventLoop.subscribe(gui.viewDispatcher.navigation, function(_sub, _item, S2) {
   if (S2.screen === "score") {
-    S2.screen = "menu";
-    S2.gui.viewDispatcher.switchTo(S2.views.menu);
+    if (S2.mode === "adjust") {
+      S2.exitAdjust(S2);
+    } else {
+      S2.screen = "menu";
+      S2.gui.viewDispatcher.switchTo(S2.views.menu);
+    }
   } else if (S2.screen === "menu") {
     S2.screen = "score";
     S2.gui.viewDispatcher.switchTo(S2.views.score);

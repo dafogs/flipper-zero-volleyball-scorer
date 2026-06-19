@@ -32,8 +32,30 @@ two-hand reach, no menu diving during a rally.
 | **→**  | +1 Team B          | —            | —            |
 | **Back** | Open menu        | Open menu    | Open menu    |
 
-The **menu** (Back) holds the less-frequent actions: Resume, Swap serve (manual
-correction), Set history, New match, Exit app.
+The **menu** (Back) holds the less-frequent actions: Resume, **Adjust scores**,
+Swap serve, Set history, New match, Exit app.
+
+### Fixing mistakes
+
+Two layers, because tapping the wrong button at the net happens:
+
+1. **Undo** (OK during play) — instantly reverses the last point, even a
+   set- or match-deciding one.
+2. **Adjust scores** (Menu → Adjust scores) — a free correction screen for
+   anything Undo can't cover, like a call reversal that should move a point
+   from one team to the other:
+
+   | Button | Adjust screen |
+   |--------|---------------|
+   | **←**  | −1 to the selected team |
+   | **→**  | +1 to the selected team |
+   | **OK** | switch selected team (A ⇄ B) |
+   | **Back** | done — re-checks whether the corrected score ends the set |
+
+   The selected team is shown in brackets, e.g. `[A 14]  11 B`. Scores can't go
+   below zero. If you open Adjust right after a set "ended", it reopens that set
+   so the live score is editable. The whole correction session counts as a
+   single Undo afterwards.
 
 Tactile feedback (no need to look): a short **green** LED blink on each point, a
 **blue** blink on undo, and the full success buzz/flash when a set or match is won.

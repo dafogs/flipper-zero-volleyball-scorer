@@ -49,7 +49,7 @@ var views = {
     // In-game menu (opened with Back).
     menu: submenu.makeWith({
         header: "Menu",
-        items: ["Resume", "Swap serve", "Set history", "New match", "Exit app"],
+        items: ["Resume", "Adjust scores", "Swap serve", "Set history", "New match", "Exit app"],
     }),
     // Scrollable set history.
     history: textBox.makeWith({ text: "", font: "text", focus: "start" }),
@@ -73,6 +73,7 @@ var S = {
     setsB: 0,        // sets won by Team B
     server: "A",     // who is serving right now: "A" | "B"
     startServer: "A",// who served first in set 1 (sets alternate from here)
+    sel: "A",        // team selected in Adjust mode: "A" | "B"
     sets: [],        // completed sets: array of { a, b, w } (w = winner "A"/"B")
     undoStack: [],   // snapshots for Undo
 
@@ -121,6 +122,28 @@ var S = {
         if (self.undoStack.length > 80) self.undoStack.splice(0, 1);
     },
 
+    // Looks at the current points and, if the set is decided (target reached
+    // with a 2-point lead), records the set and advances mode to setover or
+    // matchover. Otherwise sets mode back to play. Returns true if the set
+    // ended. Shared by normal scoring and manual correction.
+    evaluate: function (self) {
+        var t = self.target(self);
+        var hi = self.a > self.b ? self.a : self.b;
+        var lead = self.a - self.b;
+        if (lead < 0) lead = -lead;
+
+        if (hi >= t && lead >= 2) {
+            var w = self.a > self.b ? "A" : "B";
+            self.sets.push({ a: self.a, b: self.b, w: w });
+            if (w === "A") self.setsA += 1; else self.setsB += 1;
+            if (self.setsA === 3 || self.setsB === 3) self.mode = "matchover";
+            else self.mode = "setover";
+            return true;
+        }
+        self.mode = "play";
+        return false;
+    },
+
     // Award a rally to team "A" or "B".
     score: function (self, team) {
         if (self.mode !== "play") return;
@@ -130,26 +153,8 @@ var S = {
         // Rally scoring: the rally winner serves the next rally.
         self.server = team;
 
-        var t = self.target(self);
-        var hi = self.a > self.b ? self.a : self.b;
-        var lead = self.a - self.b;
-        if (lead < 0) lead = -lead;
-
-        if (hi >= t && lead >= 2) {
-            // set is decided
-            var w = self.a > self.b ? "A" : "B";
-            self.sets.push({ a: self.a, b: self.b, w: w });
-            if (w === "A") self.setsA += 1; else self.setsB += 1;
-
-            if (self.setsA === 3 || self.setsB === 3) {
-                self.mode = "matchover";
-            } else {
-                self.mode = "setover";
-            }
-            notify.success();
-        } else {
-            notify.blink("green", "short");
-        }
+        if (self.evaluate(self)) notify.success();
+        else notify.blink("green", "short");
         self.render(self);
     },
 
@@ -184,6 +189,54 @@ var S = {
         self.render(self);
     },
 
+    // --- manual score correction -------------------------------------------
+    // Free +/- adjustment of either team's points, for fixing courtside
+    // mistakes (wrong button, a call reversal, a missed point). One screen:
+    //   Left = -1, Right = +1 on the SELECTED team, OK = switch team,
+    //   Back = done (re-checks whether the corrected score ends the set).
+
+    enterAdjust: function (self) {
+        // If a set/match just "ended", reopen it so the live score is editable.
+        var guard = 0;
+        while ((self.mode === "setover" || self.mode === "matchover") &&
+               self.undoStack.length > 0 && guard < 10) {
+            self.undo(self);
+            guard += 1;
+        }
+        // One snapshot for the whole correction session -> a single Undo
+        // afterwards reverts every adjustment at once.
+        self.snapshot(self);
+        self.mode = "adjust";
+        self.sel = "A";
+        self.render(self);
+    },
+
+    adjustDelta: function (self, d) {
+        if (self.mode !== "adjust") return;
+        if (self.sel === "A") {
+            self.a += d;
+            if (self.a < 0) self.a = 0;
+        } else {
+            self.b += d;
+            if (self.b < 0) self.b = 0;
+        }
+        notify.blink(d > 0 ? "green" : "blue", "short");
+        self.render(self);
+    },
+
+    switchSel: function (self) {
+        if (self.mode !== "adjust") return;
+        self.sel = self.sel === "A" ? "B" : "A";
+        self.render(self);
+    },
+
+    exitAdjust: function (self) {
+        if (self.mode !== "adjust") return;
+        // Settle: a correction may have completed (or un-completed) a set.
+        if (self.evaluate(self)) notify.success();
+        self.render(self);
+    },
+
     // --- rendering ----------------------------------------------------------
 
     render: function (self) {
@@ -208,6 +261,19 @@ var S = {
             v.set("left", "Undo");
             v.set("center", "Next");
             v.set("right", "");
+        } else if (self.mode === "adjust") {
+            // bracket the selected team so it's obvious what +/- affects
+            var hdr = self.sel === "A"
+                ? "[A " + self.a + "]   " + self.b + " B"
+                : "A " + self.a + "   [" + self.b + " B]";
+            v.set("header", hdr);
+            v.set("text",
+                "ADJUST  -  fixing Team " + self.sel + "\n" +
+                "Left -1     Right +1\n" +
+                "OK = switch · Back = done");
+            v.set("left", "-1");
+            v.set("center", self.sel === "A" ? "To B" : "To A");
+            v.set("right", "+1");
         } else { // matchover
             var champ = self.setsA === 3 ? "A" : "B";
             v.set("header", "TEAM " + champ + " WINS!");
@@ -267,6 +333,10 @@ eventLoop.subscribe(views.score.input, function (_sub, button, S) {
         if (button === "left") S.score(S, "A");
         else if (button === "right") S.score(S, "B");
         else if (button === "center") S.undo(S);
+    } else if (S.mode === "adjust") {
+        if (button === "left") S.adjustDelta(S, -1);
+        else if (button === "right") S.adjustDelta(S, 1);
+        else if (button === "center") S.switchSel(S);
     } else if (S.mode === "setover") {
         if (button === "left") S.undo(S);
         else if (button === "center") S.nextSet(S);
@@ -286,19 +356,23 @@ eventLoop.subscribe(views.menu.chosen, function (_sub, index, S) {
     if (index === 0) {              // Resume
         S.screen = "score";
         S.gui.viewDispatcher.switchTo(S.views.score);
-    } else if (index === 1) {       // Swap serve (manual correction)
+    } else if (index === 1) {       // Adjust scores (free +/- correction)
+        S.enterAdjust(S);
+        S.screen = "score";
+        S.gui.viewDispatcher.switchTo(S.views.score);
+    } else if (index === 2) {       // Swap serve (manual correction)
         S.server = S.server === "A" ? "B" : "A";
         S.render(S);
         S.screen = "score";
         S.gui.viewDispatcher.switchTo(S.views.score);
-    } else if (index === 2) {       // Set history
+    } else if (index === 3) {       // Set history
         S.views.history.set("text", S.historyText(S));
         S.screen = "history";
         S.gui.viewDispatcher.switchTo(S.views.history);
-    } else if (index === 3) {       // New match
+    } else if (index === 4) {       // New match
         S.screen = "serve";
         S.gui.viewDispatcher.switchTo(S.views.serve);
-    } else if (index === 4) {       // Exit app
+    } else if (index === 5) {       // Exit app
         S.loop.stop();
     }
 }, S);
@@ -306,8 +380,12 @@ eventLoop.subscribe(views.menu.chosen, function (_sub, index, S) {
 // Back button -> context-dependent navigation.
 eventLoop.subscribe(gui.viewDispatcher.navigation, function (_sub, _item, S) {
     if (S.screen === "score") {
-        S.screen = "menu";
-        S.gui.viewDispatcher.switchTo(S.views.menu);
+        if (S.mode === "adjust") {
+            S.exitAdjust(S);        // Back finishes a correction, stays on score
+        } else {
+            S.screen = "menu";
+            S.gui.viewDispatcher.switchTo(S.views.menu);
+        }
     } else if (S.screen === "menu") {
         S.screen = "score";
         S.gui.viewDispatcher.switchTo(S.views.score);
