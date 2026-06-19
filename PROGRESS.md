@@ -12,10 +12,10 @@
   (renamed, not deleted separately).
 - HEAD (now `main`): `7672450` — 50/50 tests green, deploy-ready.
 
-**State:** branch `main`, working tree clean. NOT pushed — no remote exists.
-
-**NEEDS_INPUT:** no `origin` remote configured. If this should live on GitHub,
-add a remote (or `gh repo create`) and push `main` from a laptop session.
+**State:** branch `main`, working tree clean. **Pushed to
+`origin/main`** — remote `origin` =
+`https://github.com/dafogs/flipper-zero-volleyball-scorer.git`. `main` tracks
+`origin/main`.
 
 ## 2026-06-18 — Add Adjust mode (free score correction) (via Claude, Cowork)
 
