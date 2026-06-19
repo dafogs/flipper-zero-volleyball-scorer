@@ -1,5 +1,22 @@
 # PROGRESS — volleyball-scoring (Flipper Zero)
 
+## 2026-06-19 — Promote feature branch to main (via Claude, Cowork)
+
+**What was done**
+- Dan approved shipping the volleyball scorer. The repo had no `main` branch and
+  no `origin` remote (local-only, no GitHub remote configured), so the planned
+  signed `--no-ff` merge to `main` + push to `origin/main` was not possible as
+  written. Per Dan's pick, renamed the feature branch
+  `claude/flipper-volleyball-scorer` → `main` instead (no merge commit, no
+  divergent history to reconcile). The old feature branch no longer exists
+  (renamed, not deleted separately).
+- HEAD (now `main`): `7672450` — 50/50 tests green, deploy-ready.
+
+**State:** branch `main`, working tree clean. NOT pushed — no remote exists.
+
+**NEEDS_INPUT:** no `origin` remote configured. If this should live on GitHub,
+add a remote (or `gh repo create`) and push `main` from a laptop session.
+
 ## 2026-06-18 — Add Adjust mode (free score correction) (via Claude, Cowork)
 
 **What was done**
