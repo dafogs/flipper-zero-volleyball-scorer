@@ -1,5 +1,38 @@
 # PROGRESS — volleyball-scoring (Flipper Zero)
 
+## 2026-07-25 — Merge-backlog check: nothing to merge (via Claude, laptop)
+
+**Backlog said:** branch `claude/flipper-volleyball-scorer` needs a signed merge
+to `main` + push.
+
+**Reality:** already done, and not by a merge. On 2026-06-19 the feature branch
+was **renamed** to `main` (reflog `7672450`) because the repo had no `main` and
+no remote at the time. `main` now tracks `origin/main` at `5ce2bc5` (v1.1), in
+sync, and no `claude/*` branch exists in any repo under `~/Developer`. The
+`builds.md` entry was stale — corrected, including its wrong directory
+(`~/Developer/volleyball-scoring` → `~/Developer/flipper-zero-volleyball-scorer`).
+
+**Verified this session:** `tsc` clean (exit 0), `npm test` **64/64 green**.
+
+**Uncommitted splash redesign left in the tree (deliberately not committed).**
+`index.ts` + `dist/` carry a rework of the v1.1 net splash into a rounded
+double-frame "card": frame, centered "VOLLEYBALL", a rule with filled circular
+end-caps, "Score Keeper", Start button. It builds and the sim is green, but
+**green means nothing here** — `flipper-extra.d.ts` types `widget` as `any` and
+`test/sim.js` mocks it as `makeFactory(["button"])`, so neither `tsc` nor the
+harness checks element props. If firmware `widget.c` doesn't take `w`/`h`/
+`radius` on `rect`, the app throws `view has no prop named ...` at boot — the
+same failure mode as the earlier submenu-`items` bug. Needs `npm start` on the
+Mac and a look at the screen. Also an unreviewed design change: v1.1's net was
+Dan's explicit call, so the card needs his sign-off, not just a passing build.
+
+**NEEDS_INPUT:** (1) Dan to pick card vs. net splash; (2) on-device run to
+validate the widget element schema before this is committed; (3) `git push` for
+the two doc commits below (not pushed — push needs Dan's OK).
+
+**Committed this session (local only, not pushed):** `CLAUDE.md` (was untracked)
+and this note.
+
 ## 2026-06-19 — v1.1: widget splash screen (via Claude, Cowork)
 
 **Added a title splash** shown at boot using the `widget` view (drawing): a
