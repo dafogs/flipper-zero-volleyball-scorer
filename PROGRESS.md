@@ -1,5 +1,21 @@
 # PROGRESS — volleyball-scoring (Flipper Zero)
 
+## 2026-07-26 — Wrap of the 2026-07-25 session (via Claude Code, laptop)
+
+**Branch:** `main`, in sync with `origin/main` at `eb26d35` (verified:
+`git log origin/main..main` is empty).
+**Uncommitted files:** `index.ts`, `dist/volleyball-scoring.js` — the v1.2 card
+splash. **Left uncommitted on purpose.**
+
+Dan picked the **card** layout over the v1.1 net on 2026-07-25, so the design
+question below is closed. What's still open is the hardware check: nothing local
+validates the `widget` element schema (the type shim is `any`, the sim mock only
+covers `button`), so `rect`'s `w`/`h`/`radius` prop names are unverified against
+firmware `widget.c`. Run `npm start` on the Mac, look at the screen, then commit.
+
+**What's next:** on-device eyeball → commit + push v1.2.
+**Blockers:** none — it just needs the device.
+
 ## 2026-07-25 — Merge-backlog check: nothing to merge (via Claude, laptop)
 
 **Backlog said:** branch `claude/flipper-volleyball-scorer` needs a signed merge
@@ -26,12 +42,14 @@ same failure mode as the earlier submenu-`items` bug. Needs `npm start` on the
 Mac and a look at the screen. Also an unreviewed design change: v1.1's net was
 Dan's explicit call, so the card needs his sign-off, not just a passing build.
 
-**NEEDS_INPUT:** (1) Dan to pick card vs. net splash; (2) on-device run to
-validate the widget element schema before this is committed; (3) `git push` for
-the two doc commits below (not pushed — push needs Dan's OK).
+**NEEDS_INPUT:** (1) ~~Dan to pick card vs. net splash~~ — **resolved 2026-07-25:
+Dan picked the card**; (2) on-device run to validate the widget element schema
+before this is committed — **still open**; (3) ~~`git push` for the two doc
+commits~~ — **done**.
 
-**Committed this session (local only, not pushed):** `CLAUDE.md` (was untracked)
-and this note.
+**Committed this session:** `CLAUDE.md` (was untracked) and this note, as
+`eb26d35` — **pushed** to `origin/main` (this note originally said "local only,
+not pushed"; corrected at the 2026-07-26 wrap after checking git).
 
 ## 2026-06-19 — v1.1: widget splash screen (via Claude, Cowork)
 
