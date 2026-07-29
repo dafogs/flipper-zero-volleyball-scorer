@@ -44,37 +44,32 @@ var views = {
   }),
   // Settings toggles. Children are refreshed on entry to reflect current state.
   settings: submenu.makeWith({ header: "Settings" }, ["Alert: ON (sound+vibe)", "Back"]),
-  // Title splash (widget view). 128x64: title, a crisp net line, subtitle,
-  // Start button. Built from straight lines + text only (the widget can't
-  // draw curves, so a net reads cleaner than a round ball). No props of its
-  // own; elements are children.
+  // Title splash (widget view). The widget only draws black-on-white (no
+  // invert/white text), so this is a composed "card": a rounded frame, a
+  // centered title, a rule with end-caps, and a subtitle. The Start button is
+  // rendered by the firmware along the bottom. Elements are children; the
+  // widget has no props of its own.
   splash: widget.makeWith({}, [
-    { element: "string", x: 64, y: 3, align: "tm", font: "primary", text: "VOLLEYBALL" },
-    // Net: two posts, top/bottom tapes, and vertical mesh strings.
-    { element: "line", x1: 16, y1: 19, x2: 16, y2: 37 },
-    // left post
-    { element: "line", x1: 112, y1: 19, x2: 112, y2: 37 },
-    // right post
-    { element: "line", x1: 16, y1: 23, x2: 112, y2: 23 },
-    // top tape
-    { element: "line", x1: 16, y1: 34, x2: 112, y2: 34 },
-    // bottom tape
-    { element: "line", x1: 28, y1: 23, x2: 28, y2: 34 },
-    { element: "line", x1: 40, y1: 23, x2: 40, y2: 34 },
-    { element: "line", x1: 52, y1: 23, x2: 52, y2: 34 },
-    { element: "line", x1: 64, y1: 23, x2: 64, y2: 34 },
-    { element: "line", x1: 76, y1: 23, x2: 76, y2: 34 },
-    { element: "line", x1: 88, y1: 23, x2: 88, y2: 34 },
-    { element: "line", x1: 100, y1: 23, x2: 100, y2: 34 },
-    { element: "string", x: 64, y: 40, align: "tm", font: "secondary", text: "Score Keeper" },
+    { element: "rect", x: 3, y: 2, w: 122, h: 46, radius: 6, fill: false },
+    // rounded frame
+    { element: "rect", x: 5, y: 4, w: 118, h: 42, radius: 5, fill: false },
+    // inner double border
+    { element: "string", x: 64, y: 10, align: "tm", font: "primary", text: "VOLLEYBALL" },
+    { element: "line", x1: 26, y1: 27, x2: 102, y2: 27 },
+    // rule under title
+    { element: "circle", x: 22, y: 27, radius: 2, fill: true },
+    // left end-cap
+    { element: "circle", x: 106, y: 27, radius: 2, fill: true },
+    // right end-cap
+    { element: "string", x: 64, y: 32, align: "tm", font: "secondary", text: "Score Keeper" },
     { element: "button", button: "center", text: "Start" }
   ])
 };
 var S = {
   // module handles, reached via self.* inside callbacks (no closures allowed)
-  gui,
+  gui: gui,
   loop: eventLoop,
-  views,
+  views: views,
   // which view is currently on screen:
   //   "splash" | "serve" | "score" | "menu" | "history" | "settings" | "nameInput"
   screen: "splash",
@@ -177,7 +172,7 @@ var S = {
       lead = -lead;
     if (hi >= t && lead >= 2) {
       var w = self.a > self.b ? "A" : "B";
-      self.sets.push({ a: self.a, b: self.b, w });
+      self.sets.push({ a: self.a, b: self.b, w: w });
       if (w === "A") {
         self.setsA += 1;
       } else {
