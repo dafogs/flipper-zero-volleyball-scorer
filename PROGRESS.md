@@ -1,5 +1,34 @@
 # PROGRESS — volleyball-scoring (Flipper Zero)
 
+## 2026-07-28 — v1.2 card splash committed + pushed (via Claude Code, laptop)
+
+**Branch:** `main`, pushed to `origin/main`. **Working tree clean.**
+
+Dan explicitly approved committing and pushing the card splash without the
+on-device check first, so the gate the 2026-07-26 note set up was released by
+decision, not by verification. Committed `index.ts` + `dist/volleyball-scoring.js`
+as "Replace net splash with card frame design".
+
+**Verified before committing:** `npm test` **64/64 green**, `tsc` clean, and
+`dist/volleyball-scoring.js` is byte-identical after a fresh `npm run build`
+(so the committed artifact really matches the source — checked with `diff`).
+
+**What that verification does NOT cover — read before assuming `main` boots.**
+The `widget` element schema is still unvalidated against firmware `widget.c`.
+`rect`'s `w`/`h`/`radius` and `circle`'s props are a best guess; `flipper-extra.d.ts`
+types `widget` as `any` and `test/sim.js` mocks it as `makeFactory(["button"])`,
+so a bad prop name is invisible to both and throws `view has no prop named ...`
+at boot — the same failure mode as the earlier submenu-`items` bug. Green tests
+here mean the scoring logic is fine, not that the splash renders.
+
+**NEEDS_INPUT:** on-device run (`npm start` on the Mac, then look at the screen)
+to validate the widget element schema. If it throws, the fix is prop names in
+the `splash` view in `index.ts` — check firmware `modules/js_gui/widget.c` for
+the real `rect`/`circle` field names.
+
+**What's next:** on-device eyeball of v1.2; nudge splash spacing if needed.
+**Blockers:** none — it just needs the device.
+
 ## 2026-07-26 — Wrap of the 2026-07-25 session (via Claude Code, laptop)
 
 **Branch:** `main`, in sync with `origin/main` at `eb26d35` (verified:

@@ -57,10 +57,12 @@ Device firmware: 1.4.3. SDK version stamp triggers a benign "outdated script" wa
 - State is RAM-only (no persistence across power-off)
 - Possible native C `.fap` rewrite for Up/Down scoring
 - Bump `fz-sdk` dep to silence outdated-script warning
-- Uncommitted splash redesign (card layout) in the tree — needs an on-device run
-  to validate the `widget` element schema, plus Dan's pick vs. the v1.1 net.
-  Neither `tsc` nor `test/sim.js` can catch a bad element prop: the shim is
-  `any` and the mock only wires up the `button` contract.
+- Card splash (v1.2) is committed and pushed, but its `widget` element schema is
+  **unvalidated on hardware** — `rect`'s `w`/`h`/`radius` and `circle`'s props
+  are a best guess against firmware `widget.c`. Neither `tsc` nor `test/sim.js`
+  can catch a bad element prop: the shim is `any` and the mock only wires up the
+  `button` contract. A wrong prop name throws `view has no prop named ...` at
+  boot, so `main` may not run on-device until someone eyeballs it via `npm start`.
 
 ## External references
 
